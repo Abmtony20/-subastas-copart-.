@@ -82,4 +82,4 @@ npm start                 # http://localhost:3000
    - En *Configuración general*: **Web sockets = Activado**.
    - Comando de inicio: `npm start`.
 3. **Deployment Center:** conecta este repositorio de GitHub. Azure genera el workflow de GitHub Actions, que instala, compila y publica.
-4. **Datos de prueba:** en tu `.env` local configura la conexión a Azure SQL y ejecuta `npm run seed`.
+4. **Datos de prueba:** no hay que hacer nada. Al iniciar, si la base de datos está vacía, el servidor crea solo los 3 usuarios de prueba y los vehículos de demostración (`server/seed.js`).

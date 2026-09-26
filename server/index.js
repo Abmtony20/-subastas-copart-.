@@ -2,12 +2,14 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { crearEsquema } from './db.js';
+import { sembrarSiVacia } from './seed.js';
 import { router as authRouter } from './auth.js';
 import { router as catalogosRouter } from './catalogos.js';
 import { router as vehiculosRouter } from './vehiculos.js';
 import { iniciarTiempoReal } from './tiempoReal.js';
 
 await crearEsquema();
+await sembrarSiVacia();
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
