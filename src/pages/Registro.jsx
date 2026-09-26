@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { ref, set } from 'firebase/database';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase.js';
+import { useAuth } from '../auth.jsx';
 
 const REGLAS_CLAVE = [
   { ok: (c) => c.length >= 8, texto: 'Mínimo 8 caracteres' },
@@ -13,6 +11,7 @@ const REGLAS_CLAVE = [
 ];
 
 export default function Registro() {
+  const { registro } = useAuth();
   const [d, setD] = useState({ nombre: '', apellido: '', correo: '', telefono: '', clave: '', clave2: '' });
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -27,17 +26,11 @@ export default function Registro() {
     if (d.clave !== d.clave2) return setError('Las contraseñas no coinciden.');
     setCargando(true);
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, d.correo.trim(), d.clave);
-      await updateProfile(user, { displayName: `${d.nombre} ${d.apellido}` });
-      await set(ref(db, `users/${user.uid}/perfil`), {
-        nombre: d.nombre.trim(),
-        apellido: d.apellido.trim(),
-        correo: d.correo.trim(),
-        telefono: d.telefono.trim(),
-      });
+      const { clave2, ...datos } = d;
+      await registro(datos);
       navigate('/');
     } catch (ex) {
-      setError(ex.code === 'auth/email-already-in-use' ? 'Ese correo ya está registrado.' : 'No se pudo crear la cuenta.');
+      setError(ex.message);
     } finally {
       setCargando(false);
     }

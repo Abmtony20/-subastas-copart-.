@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, push, ref, update } from 'firebase/database';
-import { db, serverNow } from '../firebase.js';
+import { api, serverNow } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import {
   COMBUSTIBLES, DANIOS, TIPOS, TRACCIONES, TRANSMISIONES,
@@ -33,11 +32,8 @@ export default function Publicar() {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const [sv, sf, sp] = await Promise.all([
-        get(ref(db, `vehiculos/${id}`)), get(ref(db, `fotos/${id}`)), get(ref(db, `pujas/${id}`)),
-      ]);
-      const v = sv.val();
-      if (!v || v.ownerUid !== user.uid) {
+      const v = await api(`/vehiculos/${id}`).catch(() => null);
+      if (!v || v.ownerId !== user.id) {
         navigate('/mis-publicaciones');
         return;
       }
@@ -46,8 +42,8 @@ export default function Publicar() {
         inicio: aInputFecha(v.inicio), cierre: aInputFecha(v.cierre),
       });
       setOriginal(v);
-      setFotos(Object.values(sf.val() || {}));
-      setConPujas(sp.exists());
+      setFotos(v.fotos);
+      setConPujas(!!v.puja);
       setCargando(false);
     })();
   }, [id, user, navigate]);
@@ -81,21 +77,20 @@ export default function Publicar() {
 
     setGuardando(true);
     try {
-      const vid = id || push(ref(db, 'vehiculos')).key;
       const datos = {
-        ownerUid: user.uid,
         anio, tipo: d.tipo, marca: d.marca.trim(), modelo: d.modelo.trim(), motor: d.motor.trim(),
         transmision: d.transmision, combustible: d.combustible, traccion: d.traccion,
         cilindros: Number(d.cilindros), danio: d.danio,
         precioBase, inicio, cierre,
         portada: await miniatura(fotos[0]),
-        numFotos: fotos.length,
-        createdAt: d.createdAt || serverNow(),
+        fotos,
       };
-      await update(ref(db), { [`vehiculos/${vid}`]: datos, [`fotos/${vid}`]: fotos });
-      navigate(`/vehiculo/${vid}`);
-    } catch {
-      setError('No se pudo guardar. Revisa los datos (si ya hay ofertas no puedes cambiar precio ni fechas).');
+      const r = id
+        ? await api(`/vehiculos/${id}`, { method: 'PUT', body: datos })
+        : await api('/vehiculos', { method: 'POST', body: datos });
+      navigate(`/vehiculo/${r.id}`);
+    } catch (ex) {
+      setError(ex.message);
     } finally {
       setGuardando(false);
     }

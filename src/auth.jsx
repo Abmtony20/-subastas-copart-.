@@ -1,26 +1,32 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { onValue, ref } from 'firebase/database';
 import { Navigate, useLocation } from 'react-router-dom';
-import { auth, db } from './firebase.js';
+import { api, getToken, setToken } from './api.js';
 
-const AuthCtx = createContext({ user: undefined, perfil: null });
+const AuthCtx = createContext({ user: undefined });
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined);
-  const [perfil, setPerfil] = useState(null);
-
-  useEffect(() => onAuthStateChanged(auth, (u) => setUser(u || null)), []);
 
   useEffect(() => {
-    if (!user) {
-      setPerfil(null);
-      return;
-    }
-    return onValue(ref(db, `users/${user.uid}/perfil`), (s) => setPerfil(s.val()));
-  }, [user]);
+    if (!getToken()) return setUser(null);
+    api('/auth/yo')
+      .then(setUser)
+      .catch(() => { setToken(null); setUser(null); });
+  }, []);
 
-  return <AuthCtx.Provider value={{ user, perfil }}>{children}</AuthCtx.Provider>;
+  async function entrar(ruta, datos) {
+    const { token, usuario } = await api(ruta, { method: 'POST', body: datos });
+    setToken(token);
+    setUser(usuario);
+  }
+
+  const valor = {
+    user,
+    login: (correo, clave) => entrar('/auth/login', { correo, clave }),
+    registro: (datos) => entrar('/auth/registro', datos),
+    logout: () => { setToken(null); setUser(null); },
+  };
+  return <AuthCtx.Provider value={valor}>{children}</AuthCtx.Provider>;
 }
 
 export const useAuth = () => useContext(AuthCtx);

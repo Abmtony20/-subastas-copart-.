@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { onValue, ref, serverTimestamp, set } from 'firebase/database';
-import { db } from '../firebase.js';
+import { api, socket } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Carrusel from '../components/Carrusel.jsx';
 import BadgeDanio from '../components/BadgeDanio.jsx';
@@ -9,37 +8,56 @@ import { ETIQUETA_ESTADO, estadoSubasta, fmtFecha, fmtQ, fmtRestante, ofertaMini
 
 export default function Detalle() {
   const { id } = useParams();
+  const vid = Number(id);
   const { user } = useAuth();
   const now = useNow();
   const [v, setV] = useState(undefined);
-  const [puja, setPuja] = useState(null);
-  const [fotos, setFotos] = useState([]);
-  const [participe, setParticipe] = useState(false);
   const [monto, setMonto] = useState('');
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [destello, setDestello] = useState(false);
+  const timer = useRef();
 
-  useEffect(() => onValue(ref(db, `vehiculos/${id}`), (s) => setV(s.val())), [id]);
-  useEffect(() => onValue(ref(db, `fotos/${id}`), (s) => setFotos(Object.values(s.val() || {}))), [id]);
-  useEffect(() => onValue(ref(db, `pujas/${id}`), (s) => {
-    setPuja(s.val());
-    setDestello(true);
-    setTimeout(() => setDestello(false), 900);
-  }), [id]);
+  const cargar = useCallback(() => {
+    api(`/vehiculos/${vid}`).then(setV).catch((e) => setV(e.status === 404 ? null : undefined));
+  }, [vid]);
+
+  // Recarga al cambiar de usuario (login/logout) para recalcular "ganando/superado".
+  useEffect(cargar, [cargar, user]);
+
   useEffect(() => {
-    if (!user) return setParticipe(false);
-    return onValue(ref(db, `users/${user.uid}/pujas/${id}`), (s) => setParticipe(s.exists()));
-  }, [user, id]);
+    const unirse = () => socket.emit('unirse', vid);
+    const onPuja = (e) => {
+      if (e.vehiculoId !== vid) return;
+      setV((x) => x && { ...x, puja: e.puja, soyLider: e.soyLider, participe: e.participe });
+      setDestello(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setDestello(false), 900);
+    };
+    const onCambio = (e) => e.vehiculoId === vid && cargar();
+    unirse();
+    socket.on('connect', unirse);
+    socket.on('connect', cargar);
+    socket.on('puja', onPuja);
+    socket.on('inventario:cambio', onCambio);
+    return () => {
+      socket.emit('salir', vid);
+      socket.off('connect', unirse);
+      socket.off('connect', cargar);
+      socket.off('puja', onPuja);
+      socket.off('inventario:cambio', onCambio);
+    };
+  }, [vid, cargar]);
 
   if (v === undefined) return <p className="cargando">Cargando vehículo…</p>;
   if (v === null) return <p className="vacio">Este vehículo no existe. <Link to="/">Volver al inventario</Link></p>;
 
+  const puja = v.puja;
   const estado = estadoSubasta(v, puja, now);
   const minimo = ofertaMinima(v, puja);
-  const esDuenio = user && user.uid === v.ownerUid;
-  const voyGanando = user && puja && puja.lider === user.uid;
-  const meSuperaron = user && participe && puja && puja.lider !== user.uid;
+  const esDuenio = user && user.id === v.ownerId;
+  const voyGanando = user && puja && v.soyLider;
+  const meSuperaron = user && puja && v.participe && !v.soyLider;
 
   async function ofertar(e) {
     e.preventDefault();
@@ -49,16 +67,11 @@ export default function Detalle() {
     if (m < minimo) return setError(`La oferta mínima en este momento es ${fmtQ(minimo)}.`);
     setEnviando(true);
     try {
-      await set(ref(db, `pujas/${id}`), {
-        monto: m,
-        lider: user.uid,
-        ts: serverTimestamp(),
-        total: (puja?.total || 0) + 1,
-      });
-      await set(ref(db, `users/${user.uid}/pujas/${id}`), true);
+      const r = await api(`/vehiculos/${vid}/pujas`, { method: 'POST', body: { monto: m } });
+      setV((x) => ({ ...x, ...r }));
       setMonto('');
-    } catch {
-      setError('El servidor rechazó la oferta: otro usuario ofertó antes o la subasta ya no está activa. Revisa el nuevo mínimo e inténtalo de nuevo.');
+    } catch (ex) {
+      setError(ex.message);
     } finally {
       setEnviando(false);
     }
@@ -75,7 +88,7 @@ export default function Detalle() {
       <Link to="/" className="volver">← Volver al inventario</Link>
       <div className="detalle-grid">
         <div>
-          <Carrusel fotos={fotos} />
+          <Carrusel fotos={v.fotos} />
           <section className="panel">
             <h2>Ficha técnica</h2>
             <dl className="ficha">
@@ -108,8 +121,8 @@ export default function Detalle() {
             <div className="indicador superado">Tu oferta ha sido superada. ¡Haz tu oferta ahora antes de que termine el tiempo!</div>
           )}
           {estado === 'vendida' && (
-            <div className={`indicador ${puja.lider === user?.uid ? 'ganando' : 'neutral'}`}>
-              {puja.lider === user?.uid ? `¡Ganaste esta subasta por ${fmtQ(puja.monto)}!` : `Vendido por ${fmtQ(puja.monto)}`}
+            <div className={`indicador ${voyGanando ? 'ganando' : 'neutral'}`}>
+              {voyGanando ? `¡Ganaste esta subasta por ${fmtQ(puja.monto)}!` : `Vendido por ${fmtQ(puja.monto)}`}
             </div>
           )}
           {estado === 'desierta' && (

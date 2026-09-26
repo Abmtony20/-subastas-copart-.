@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { serverNow } from './firebase.js';
+import { serverNow } from './api.js';
 
 export const DANIOS = {
   verde: { nombre: 'Verde', desc: 'Daño menor / Limpio' },

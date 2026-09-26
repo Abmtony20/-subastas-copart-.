@@ -1,8 +1,8 @@
 # AutoPuja GT: subastas de vehículos en tiempo real (caso Copart)
 
-## 🔗 Sitio publicado: **https://TU-PROYECTO.web.app**
+## 🔗 Sitio publicado: **https://TU-APP.azurewebsites.net**
 
-Plataforma web desacoplada (SPA + Web API/BaaS + base de datos) para publicar vehículos importados y subastarlos en tiempo real.
+Sistema desacoplado **Frontend (SPA React) + Web API RESTful (Node.js/Express) + Base de datos (SQL Server / Azure SQL)**, con pujas en tiempo real mediante **Socket.IO** (WebSockets).
 
 ## 👤 Usuarios de prueba (pre-creados)
 
@@ -12,58 +12,74 @@ Plataforma web desacoplada (SPA + Web API/BaaS + base de datos) para publicar ve
 | 2 | Bruno Méndez | `bruno.prueba@autopuja.test` | `Subasta#2026B` |
 | 3 | Carla Pérez | `carla.prueba@autopuja.test` | `Subasta#2026C` |
 
-**Prueba cruzada sugerida:** abre el sitio en dos navegadores (o uno en modo incógnito), inicia sesión con dos usuarios distintos y entra al mismo vehículo. Al ofertar en uno, el otro ve al instante el nuevo monto, el temporizador y el aviso *"Tu oferta ha sido superada"* sin recargar la página.
+**Prueba cruzada sugerida:** abre el sitio en dos navegadores distintos (o uno normal y otro en incógnito), inicia sesión con dos usuarios diferentes y entra al mismo vehículo. Por ejemplo, el *2017 Ford Explorer* (base Q 20,000) publicado por Bruno: oferta con Ana y luego con Carla. Cada navegador ve al instante el nuevo monto y los avisos *"¡Vas ganando esta subasta!"* / *"Tu oferta ha sido superada"* sin recargar la página.
 
-## Tecnologías
+## Arquitectura
+
+```
+Navegador (React SPA) ──HTTP/JSON──▶ Web API Express ──▶ SQL Server / Azure SQL
+        ▲                                  │
+        └────────── Socket.IO (WebSocket) ◀┘  (nueva puja → se notifica a todos al instante)
+```
 
 | Capa | Tecnología |
 |------|------------|
-| Frontend | React 18 + Vite (SPA) y React Router |
-| Autenticación | Firebase Authentication (correo/contraseña) |
-| Base de datos y tiempo real | Firebase Realtime Database (listeners `onValue`) |
-| Validación en servidor | Reglas de seguridad de Realtime Database (`database.rules.json`) |
-| Hosting | Firebase Hosting |
+| Frontend | React 18 + Vite (SPA), React Router, consumo asíncrono con `fetch` |
+| Backend | Node.js + Express 5 (API REST), JWT + bcrypt |
+| Tiempo real | Socket.IO (salas por vehículo, mensajes personalizados por usuario) |
+| Base de datos | SQL Server (local) / Azure SQL Database (producción) |
+| Hosting | Azure App Service (Linux, Node 22) |
 
-## Funcionalidades
+## Endpoints de la API
 
-- **Autenticación:** registro con nombre, apellido, correo, teléfono y contraseña segura (8+ caracteres, mayúscula, minúscula, número y símbolo). Sin sesión solo se puede ver el inventario; las rutas de publicar y editar redirigen al login, y el servidor rechaza escrituras sin autenticación.
-- **Publicación:** ficha técnica completa (año, tipo, marca, modelo, motor, transmisión, combustible, tren de manejo y cilindros), clasificación de daño (🟢 Verde / 🟡 Amarillo / 🔴 Rojo), mínimo 5 fotografías (se comprimen en el navegador), precio base y fechas de inicio y cierre.
-- **Mis publicaciones:** buscador y edición de los vehículos propios. Si un vehículo ya tiene ofertas, su precio base y sus fechas quedan bloqueados.
-- **Inventario dinámico:** tarjetas con portada, daño, oferta actual y cuenta regresiva en vivo. Filtros combinables por texto, marca, modelo, rango de años, tipo, combustible, transmisión, tracción, cilindros, nivel de daño y estado de la subasta.
-- **Detalle y subasta:** carrusel interactivo (flechas, miniaturas y teclado), ficha técnica completa, reloj sincronizado con la hora del servidor, e indicadores *"¡Vas ganando esta subasta!"* y *"Tu oferta ha sido superada"*. Al vencer el tiempo se muestra *Oferta cerrada*, con el resultado *Vendido* o *No vendida / desierta*.
-- **Privacidad:** solo se muestra el monto más alto y la cantidad de ofertas; el postor aparece como anónimo. Los perfiles solo los puede leer su propio dueño.
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/api/auth/registro` | – | Registro (nombre, apellido, correo, teléfono, contraseña segura) |
+| POST | `/api/auth/login` | – | Inicio de sesión, devuelve JWT |
+| GET | `/api/auth/yo` | ✔ | Usuario autenticado |
+| GET | `/api/catalogos` | – | Catálogos: tipos, transmisiones, combustibles, tracciones, daños y marcas |
+| GET | `/api/vehiculos` | – | Inventario con la oferta actual |
+| GET | `/api/vehiculos/mios` | ✔ | Mis publicaciones |
+| GET | `/api/vehiculos/:id` | opcional | Detalle, fotos y estado personal (ganando / superado) |
+| POST | `/api/vehiculos` | ✔ | Publicar vehículo |
+| PUT | `/api/vehiculos/:id` | ✔ dueño | Editar publicación |
+| POST | `/api/vehiculos/:id/pujas` | ✔ | Ofertar |
+| GET | `/api/tiempo` | – | Hora del servidor (sincroniza los temporizadores) |
 
-## Reglas de puja validadas en el servidor (`database.rules.json`)
+## Reglas de negocio validadas en el servidor
+
+Todas se validan en `POST /api/vehiculos/:id/pujas`, dentro de una transacción SQL con bloqueo (`UPDLOCK, HOLDLOCK`) para que dos ofertas simultáneas no pasen la misma validación:
 
 - La oferta debe ser mayor o igual al **precio base**.
-- La oferta debe superar la oferta actual por al menos **10%** (`nueva × 10 ≥ actual × 11`).
-- Solo se aceptan ofertas entre la **fecha de inicio y la de cierre**, usando la hora del servidor (`now`).
-- El postor debe estar autenticado, no puede ser el dueño del vehículo y no puede suplantar a otro usuario.
-- Nadie puede borrar ni reducir una puja. El contador de ofertas solo aumenta de uno en uno.
+- La oferta debe superar la oferta actual por al menos **10%**.
+- Solo se aceptan ofertas entre la **fecha y hora de inicio y la de cierre**, según el reloj del servidor.
+- Hay que haber iniciado sesión, y el publicador no puede ofertar en su propio vehículo.
+- **Privacidad:** la API nunca envía la identidad de quien ofertó; solo el monto y la cantidad de ofertas.
+- Al cerrar, la subasta queda como **Vendido** si hubo ofertas o como **No vendida / desierta** si no se alcanzó la base.
+- Si un vehículo ya tiene ofertas, su dueño no puede cambiar el precio base ni las fechas.
 
-## Estructura de datos
+## Modelo de datos
 
-```
-users/{uid}/perfil      → nombre, apellido, correo, teléfono (privado)
-users/{uid}/pujas/{vid} → subastas en las que participó
-vehiculos/{vid}         → ficha técnica, daño, portada, precioBase, inicio, cierre, ownerUid
-fotos/{vid}             → galería (≥ 5)
-pujas/{vid}             → { monto, lider, ts, total }  (oferta más alta)
-```
+`Usuarios` (1) ─< `Vehiculos` (1) ─< `Fotos`  ·  `Vehiculos` (1) ─< `Pujas` >─ (1) `Usuarios`
+
+El script está en [`server/schema.sql`](server/schema.sql). Las tablas se crean solas al iniciar el servidor.
 
 ## Ejecutar localmente
 
 ```bash
 npm install
-# 1. Pegar la configuración web de Firebase en src/firebaseConfig.js
-npm run dev
+cp .env.example .env      # configurar la conexión a SQL Server
+npm run build
+npm run seed              # tablas + 3 usuarios de prueba + vehículos demo
+npm start                 # http://localhost:3000
 ```
 
-## Despliegue
+## Despliegue en Azure
 
-```bash
-npx firebase login
-npx firebase use --add        # seleccionar el proyecto
-npm run deploy                # build + reglas de BD + hosting
-npm run seed                  # crea los 3 usuarios de prueba y vehículos demo
-```
+1. **Azure SQL Database:** crea un servidor y una base de datos `SubastasCopart` (la oferta *Free* sirve). En *Redes*, activa **"Permitir que los servicios de Azure accedan"** y agrega tu IP.
+2. **Azure App Service:** crea una *Web App* con Linux y **Node 22 LTS**. En *Configuración*:
+   - Variables de entorno: `DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` y `JWT_SECRET`.
+   - En *Configuración general*: **Web sockets = Activado**.
+   - Comando de inicio: `npm start`.
+3. **Deployment Center:** conecta este repositorio de GitHub. Azure genera el workflow de GitHub Actions, que instala, compila y publica.
+4. **Datos de prueba:** en tu `.env` local configura la conexión a Azure SQL y ejecuta `npm run seed`.

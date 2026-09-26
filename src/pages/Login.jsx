@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { auth } from '../firebase.js';
+import { useAuth } from '../auth.jsx';
 
 export default function Login() {
+  const { login } = useAuth();
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
   const [error, setError] = useState('');
@@ -16,10 +16,10 @@ export default function Login() {
     setError('');
     setCargando(true);
     try {
-      await signInWithEmailAndPassword(auth, correo.trim(), clave);
+      await login(correo.trim(), clave);
       navigate(destino, { replace: true });
-    } catch {
-      setError('Correo o contraseña incorrectos.');
+    } catch (ex) {
+      setError(ex.message);
     } finally {
       setCargando(false);
     }

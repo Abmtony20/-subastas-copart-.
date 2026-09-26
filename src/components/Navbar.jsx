@@ -1,14 +1,12 @@
-import { signOut } from 'firebase/auth';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
-import { auth } from '../firebase.js';
 
 export default function Navbar() {
-  const { user, perfil } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  async function salir() {
-    await signOut(auth);
+  function salir() {
+    logout();
     navigate('/');
   }
 
@@ -26,7 +24,7 @@ export default function Navbar() {
         <div className="sesion">
           {user ? (
             <>
-              <span className="saludo">Hola, {perfil?.nombre || user.displayName || user.email}</span>
+              <span className="saludo">Hola, {user.nombre}</span>
               <button className="btn btn-sec" onClick={salir}>Salir</button>
             </>
           ) : (

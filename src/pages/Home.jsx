@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { onValue, ref } from 'firebase/database';
-import { db } from '../firebase.js';
 import { useAuth } from '../auth.jsx';
+import { useInventario } from '../useInventario.js';
 import TarjetaVehiculo from '../components/TarjetaVehiculo.jsx';
 import { COMBUSTIBLES, DANIOS, TIPOS, TRACCIONES, TRANSMISIONES, estadoSubasta, useNow } from '../utils.js';
 
@@ -13,16 +12,10 @@ const FILTROS_VACIOS = {
 
 export default function Home() {
   const { user } = useAuth();
-  const [vehiculos, setVehiculos] = useState(null);
-  const [pujas, setPujas] = useState({});
+  const { lista: vehiculos, error } = useInventario();
   const [f, setF] = useState(FILTROS_VACIOS);
   const now = useNow();
 
-  useEffect(() => onValue(ref(db, 'vehiculos'), (s) => {
-    const data = s.val() || {};
-    setVehiculos(Object.entries(data).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.createdAt - a.createdAt));
-  }), []);
-  useEffect(() => onValue(ref(db, 'pujas'), (s) => setPujas(s.val() || {})), []);
 
   const marcas = useMemo(() => [...new Set((vehiculos || []).map((v) => v.marca))].sort(), [vehiculos]);
   const modelos = useMemo(
@@ -47,13 +40,13 @@ export default function Home() {
     if (f.anioMin && v.anio < Number(f.anioMin)) return false;
     if (f.anioMax && v.anio > Number(f.anioMax)) return false;
     if (f.estado) {
-      const e = estadoSubasta(v, pujas[v.id], now);
+      const e = estadoSubasta(v, v.puja, now);
       if (f.estado === 'cerrada' ? !(e === 'vendida' || e === 'desierta') : e !== f.estado) return false;
     }
     return true;
   });
 
-  const activos = (vehiculos || []).filter((v) => estadoSubasta(v, pujas[v.id], now) === 'activa').length;
+  const activos = (vehiculos || []).filter((v) => estadoSubasta(v, v.puja, now) === 'activa').length;
   const hayFiltros = Object.values(f).some(Boolean);
 
   return (
@@ -157,11 +150,12 @@ export default function Home() {
         </aside>
 
         <section className="resultados">
+          {error && <p className="error">{error}</p>}
           <p className="conteo">
             {vehiculos === null ? 'Cargando inventario…' : `${lista.length} vehículo(s) encontrado(s)`}
           </p>
           <div className="grid">
-            {lista.map((v) => <TarjetaVehiculo key={v.id} v={v} puja={pujas[v.id]} now={now} />)}
+            {lista.map((v) => <TarjetaVehiculo key={v.id} v={v} puja={v.puja} now={now} />)}
           </div>
           {vehiculos && !lista.length && <p className="vacio">No hay vehículos que coincidan con los filtros.</p>}
         </section>
