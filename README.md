@@ -1,6 +1,6 @@
 # AutoPuja GT: subastas de vehículos en tiempo real (caso Copart)
 
-## 🔗 Sitio publicado: **https://TU-APP.azurewebsites.net**
+## 🔗 Sitio publicado: **https://autopuja-acastaneda-cpgcdqf8d5g6cjey.mexicocentral-01.azurewebsites.net**
 
 Sistema desacoplado **Frontend (SPA React) + Web API RESTful (Node.js/Express) + Base de datos (SQL Server / Azure SQL)**, con pujas en tiempo real mediante **Socket.IO** (WebSockets).
 
