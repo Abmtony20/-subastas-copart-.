@@ -1,0 +1,41 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "vehiculos": {
+      ".read": true,
+      ".indexOn": ["ownerUid", "createdAt"],
+      "$vid": {
+        ".write": "auth != null && newData.exists() && newData.child('ownerUid').val() === auth.uid && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['ownerUid','anio','tipo','marca','modelo','motor','transmision','combustible','traccion','cilindros','danio','portada','numFotos','precioBase','inicio','cierre','createdAt']) && newData.child('cierre').val() > newData.child('inicio').val() && (!root.child('pujas').child($vid).exists() || (newData.child('precioBase').val() === data.child('precioBase').val() && newData.child('inicio').val() === data.child('inicio').val() && newData.child('cierre').val() === data.child('cierre').val()))",
+        "anio": { ".validate": "newData.isNumber() && newData.val() >= 1950 && newData.val() <= 2030" },
+        "cilindros": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 16" },
+        "danio": { ".validate": "newData.val() === 'verde' || newData.val() === 'amarillo' || newData.val() === 'rojo'" },
+        "traccion": { ".validate": "newData.val() === 'AWD' || newData.val() === 'FWD' || newData.val() === 'RWD' || newData.val() === '4WD'" },
+        "precioBase": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() % 1 === 0" },
+        "numFotos": { ".validate": "newData.isNumber() && newData.val() >= 5" },
+        "inicio": { ".validate": "newData.isNumber()" },
+        "cierre": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "fotos": {
+      ".read": true,
+      "$vid": {
+        ".write": "auth != null && newData.exists() && newData.parent().parent().child('vehiculos').child($vid).child('ownerUid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['0','1','2','3','4'])"
+      }
+    },
+    "pujas": {
+      ".read": true,
+      "$vid": {
+        ".write": "auth != null && newData.exists() && root.child('vehiculos').child($vid).exists() && root.child('vehiculos').child($vid).child('ownerUid').val() !== auth.uid && now >= root.child('vehiculos').child($vid).child('inicio').val() && now <= root.child('vehiculos').child($vid).child('cierre').val()",
+        ".validate": "newData.hasChildren(['monto','lider','ts','total']) && newData.child('lider').val() === auth.uid && newData.child('ts').val() === now && newData.child('monto').isNumber() && newData.child('monto').val() % 1 === 0 && newData.child('monto').val() >= root.child('vehiculos').child($vid).child('precioBase').val() && (!data.exists() || newData.child('monto').val() * 10 >= data.child('monto').val() * 11) && (data.exists() ? newData.child('total').val() === data.child('total').val() + 1 : newData.child('total').val() === 1)",
+        "$otro": { ".validate": "$otro === 'monto' || $otro === 'lider' || $otro === 'ts' || $otro === 'total'" }
+      }
+    }
+  }
+}
