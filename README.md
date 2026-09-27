@@ -30,6 +30,8 @@ Navegador (React SPA) ──HTTP/JSON──▶ Web API Express ──▶ SQL Ser
 | Base de datos | SQL Server (local) / Azure SQL Database (producción) |
 | Hosting | Azure App Service (Linux, Node 22) |
 
+Las fotografías de los vehículos de demostración son imágenes con licencia libre de [Wikimedia Commons](https://commons.wikimedia.org) (el nombre de cada archivo está en `server/fotosDemo.js`).
+
 ## Endpoints de la API
 
 | Método | Ruta | Auth | Descripción |
