@@ -14,11 +14,27 @@ const config = usarOdbc
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       options: { encrypt: true, trustServerCertificate: false },
+      connectionTimeout: 30000,
       pool: { max: 10 },
     };
 
 export { sql };
-export const pool = await new sql.ConnectionPool(config).connect();
+export let pool;
+
+// Azure SQL sin servidor se pausa cuando no se usa y tarda ~1 minuto en reanudarse,
+// así que la conexión se reintenta en vez de fallar al primer intento.
+export async function conectar(intentos = 20) {
+  for (let i = 1; ; i++) {
+    try {
+      pool = await new sql.ConnectionPool(config).connect();
+      return pool;
+    } catch (e) {
+      console.error(`No se pudo conectar a la base de datos (intento ${i}/${intentos}): ${e.message}`);
+      if (i >= intentos) throw e;
+      await new Promise((r) => setTimeout(r, 10000));
+    }
+  }
+}
 
 export async function crearEsquema() {
   const ddl = await readFile(new URL('./schema.sql', import.meta.url), 'utf8');
