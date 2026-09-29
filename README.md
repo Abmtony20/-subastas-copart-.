@@ -76,6 +76,18 @@ npm run seed              # tablas + 3 usuarios de prueba + vehículos demo
 npm start                 # http://localhost:3000
 ```
 
+## Pruebas automáticas
+
+Con el servidor corriendo (`npm start`), en otra terminal:
+
+```bash
+npm test
+```
+
+`tests/pruebas.mjs` ejecuta 42 pruebas de punta a punta que cubren la rúbrica: registro y login (contraseña segura, correo repetido, token falso), bloqueo a anónimos, validaciones de publicación (5+ fotos, ficha completa, daño, tren de manejo, fechas), edición solo por el dueño, reglas de puja (precio base, +10 %, ofertas simultáneas, antes del inicio / después del cierre), anonimato del postor y notificaciones en tiempo real por Socket.IO entre dos usuarios.
+
+> Las subastas de las cuentas de prueba se reabren solas cuando les quedan menos de 12 horas, para que siempre haya vehículos en vivo al evaluar el sitio.
+
 ## Despliegue en Azure
 
 1. **Azure SQL Database:** crea un servidor y una base de datos `SubastasCopart` (la oferta *Free* sirve). En *Redes*, activa **"Permitir que los servicios de Azure accedan"** y agrega tu IP.

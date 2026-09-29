@@ -2,11 +2,11 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { conectar, crearEsquema } from './db.js';
-import { sembrarSiVacia } from './seed.js';
+import { renovarSubastasDemo, sembrarSiVacia } from './seed.js';
 import { router as authRouter } from './auth.js';
 import { router as catalogosRouter } from './catalogos.js';
 import { router as vehiculosRouter } from './vehiculos.js';
-import { iniciarTiempoReal } from './tiempoReal.js';
+import { iniciarTiempoReal, notificarInventario } from './tiempoReal.js';
 
 let baseLista = false;
 
@@ -53,6 +53,14 @@ try {
   await sembrarSiVacia();
   baseLista = true;
   console.log('Base de datos lista.');
+  // Cada hora revisa si hay subastas de demostración por vencer y las reabre.
+  setInterval(async () => {
+    try {
+      for (const id of await renovarSubastasDemo()) notificarInventario(id);
+    } catch (e) {
+      console.error('No se pudieron renovar las subastas de demostración:', e.message);
+    }
+  }, 3600000);
 } catch (e) {
   console.error('No se pudo preparar la base de datos:', e);
   process.exit(1);

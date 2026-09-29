@@ -156,6 +156,8 @@ legend { font-weight: 800; color: var(--primario); padding: 0 6px; }
 .volver { display: inline-block; margin-bottom: 14px; text-decoration: none; font-weight: 600; }
 .detalle-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 22px; align-items: start; }
 .detalle-grid > div { display: grid; gap: 22px; }
+/* Sin esto, la tira de miniaturas estira la columna y la página se desborda en celulares. */
+.detalle-grid > *, .detalle-grid > div > *, .inventario > * { min-width: 0; }
 .ficha { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: 0; }
 .ficha div { padding: 10px 0; border-bottom: 1px solid var(--borde); display: flex; justify-content: space-between; gap: 10px; }
 .ficha div:nth-child(odd) { padding-right: 16px; }
@@ -210,5 +212,7 @@ legend { font-weight: 800; color: var(--primario); padding: 0 6px; }
   .ficha { grid-template-columns: 1fr; }
   .ficha div:nth-child(n) { padding: 10px 0; border-left: none; }
   .hero h1 { font-size: 1.6rem; }
-  .navbar-int { gap: 10px; }
+  .navbar-int { gap: 10px; justify-content: space-between; }
+  .menu { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .menu a { white-space: nowrap; }
 }

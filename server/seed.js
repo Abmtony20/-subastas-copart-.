@@ -71,6 +71,28 @@ export async function sembrarSiVacia() {
     await sembrarDatos();
   }
   await actualizarFotosDemo();
+  await renovarSubastasDemo();
+}
+
+// Las subastas de las cuentas de prueba (@autopuja.test) se reabren cuando les quedan menos de
+// 12 horas, para que siempre haya vehículos en vivo al evaluar el sitio. Se reinician sus ofertas.
+// Los vehículos publicados por usuarios reales nunca se modifican.
+export async function renovarSubastasDemo() {
+  const ahora = Date.now();
+  const r = await pool.request()
+    .input('limite', sql.BigInt, ahora + 12 * H)
+    .query(`SELECT v.Id, v.Modelo FROM Vehiculos v JOIN Usuarios u ON u.Id = v.UsuarioId
+            WHERE u.Correo LIKE '%@autopuja.test' AND v.CierreMs < @limite`);
+  for (const v of r.recordset) {
+    const dias = 5 + (Number(v.Id) % 5); // entre 5 y 9 días, para que no cierren todas a la vez
+    await pool.request()
+      .input('id', sql.Int, v.Id)
+      .input('ini', sql.BigInt, ahora - H)
+      .input('fin', sql.BigInt, ahora + dias * 24 * H)
+      .query('DELETE FROM Pujas WHERE VehiculoId = @id; UPDATE Vehiculos SET InicioMs = @ini, CierreMs = @fin WHERE Id = @id;');
+    console.log(`Subasta de demostración reabierta: ${v.Modelo} (${dias} días).`);
+  }
+  return r.recordset.map((v) => Number(v.Id));
 }
 
 // Los vehículos de demostración creados antes tenían ilustraciones SVG; se reemplazan por

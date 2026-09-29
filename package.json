@@ -11,7 +11,8 @@
     "dev:api": "node --watch server/index.js",
     "build": "vite build",
     "start": "node server/index.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "test": "node tests/pruebas.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
